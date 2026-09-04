@@ -71,6 +71,13 @@ async function startServer() {
       }
     });
 
+    socket.on("turnUpdate", (roomId, activePlayerId) => {
+      const room = rooms.get(roomId);
+      if (room) {
+        io.to(roomId).emit("turnUpdate", activePlayerId);
+      }
+    });
+
     // Disconnect handling
     socket.on("disconnect", () => {
       console.log("Client disconnected:", socket.id);

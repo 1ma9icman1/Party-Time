@@ -24,7 +24,16 @@ export default function MainMenu({ onHost, onJoin, onSolo }: MainMenuProps) {
 
   return (
     <div className="relative w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#050014] to-[#12002f] overflow-hidden">
-      {/* Background Neon Grid */}
+      {/* Uploaded Background Image */}
+      <div className="absolute inset-0 z-0 pointer-events-none"
+           style={{
+             backgroundImage: "url('/assets/aistudio/Copilot_20260904_130159.png')",
+             backgroundSize: 'cover',
+             backgroundPosition: 'center',
+             filter: 'blur(8px) brightness(0.4)'
+           }}
+      />
+      {/* Background Neon Grid (Overlay) */}
       <div className="absolute inset-0 pointer-events-none z-0" 
            style={{
              backgroundImage: 'linear-gradient(to right, #e81cff22 1px, transparent 1px), linear-gradient(to bottom, #e81cff22 1px, transparent 1px)',
@@ -72,8 +81,8 @@ export default function MainMenu({ onHost, onJoin, onSolo }: MainMenuProps) {
               <path id="textCircle" d="M 300, 300 m -220, 0 a 220,220 0 1,1 440,0 a 220,220 0 1,1 -440,0" />
             </defs>
             <text className="text-[44px] font-black uppercase tracking-[0.25em]" fill="transparent" stroke="#22d3ee" strokeWidth="2">
-              <textPath href="#textCircle" startOffset="0%">
-                 PARTY TIME ✦ PARTY TIME ✦ PARTY TIME ✦ PARTY TIME ✦ 
+              <textPath href="#textCircle" startOffset="0%" textLength="1382" lengthAdjust="spacingAndGlyphs">
+                 PARTY TIME ✦ PARTY TIME ✦ PARTY TIME ✦ PARTY TIME ✦
               </textPath>
             </text>
           </svg>

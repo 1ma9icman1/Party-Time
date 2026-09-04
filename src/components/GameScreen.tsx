@@ -126,7 +126,7 @@ export default function GameScreen({ roomId, players, isSolo, onExit }: GameScre
           if (!levelCompleteRef.current && engineRef.current) {
              setTurnIndex(prev => {
                 const next = (prev + 1) % players.length;
-                if (!isSolo) socket.emit("turnUpdate", players[next]?.id);
+                if (!isSolo) socket.emit("turnUpdate", roomId, players[next]?.id);
                 return next;
              });
              spawnBird(engineRef.current);
@@ -250,7 +250,7 @@ export default function GameScreen({ roomId, players, isSolo, onExit }: GameScre
     
     // Reset turns for new level
     setTurnIndex(0);
-    if (!isSolo) socket.emit("turnUpdate", players[0]?.id);
+    if (!isSolo) socket.emit("turnUpdate", roomId, players[0]?.id);
   };
   
   const handleLevelComplete = async () => {
