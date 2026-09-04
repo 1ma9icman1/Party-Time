@@ -71,6 +71,14 @@ async function startServer() {
       }
     });
 
+    socket.on("bowlAim", (roomId, data) => {
+      socket.to(roomId).emit("bowlAim", data);
+    });
+
+    socket.on("bowlThrow", (roomId, data) => {
+      socket.to(roomId).emit("bowlThrow", data);
+    });
+
     socket.on("turnUpdate", (roomId, activePlayerId) => {
       const room = rooms.get(roomId);
       if (room) {

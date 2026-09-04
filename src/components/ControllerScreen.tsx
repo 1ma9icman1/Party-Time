@@ -1,13 +1,13 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { socket } from "../socket";
-import { LogOut, Zap, Crosshair, Gamepad2 } from "lucide-react";
+import { LogOut, Zap, Gamepad2, Navigation } from "lucide-react";
 
 interface ControllerScreenProps {
   roomId: string;
-  onLeave: () => void;
+  onExit: () => void;
 }
 
-export default function ControllerScreen({ roomId, onLeave }: ControllerScreenProps) {
+export default function ControllerScreen({ roomId, onExit }: ControllerScreenProps) {
   const [playerName, setPlayerName] = useState("");
   const [joined, setJoined] = useState(false);
   const [error, setError] = useState("");
@@ -15,33 +15,29 @@ export default function ControllerScreen({ roomId, onLeave }: ControllerScreenPr
   // Controller State
   const [isMyTurn, setIsMyTurn] = useState(false);
   
-  // Wii Pointer State
-  const [pointerModeActive, setPointerModeActive] = useState(false);
-  const [calibration, setCalibration] = useState<{ alpha: number, beta: number, gamma: number } | null>(null);
+  // Wii Pointer/Swing State
+  const [motionActive, setMotionActive] = useState(false);
   const [isGrabbing, setIsGrabbing] = useState(false);
-  const [currentOffset, setCurrentOffset] = useState<{ x: number, y: number }>({ x: 0, y: 0 });
+  const maxAccRef = useRef<number>(0);
 
   useEffect(() => {
     socket.connect();
     
-    socket.on("joinedRoom", () => {
+    socket.on("joinedRoom", (room) => {
       setJoined(true);
       setError("");
     });
-
-    socket.on("roomError", (msg) => {
-      setError(msg);
-    });
     
-    // Listen for turn updates
-    socket.on("turnUpdate", (activePlayerId) => {
-      setIsMyTurn(socket.id === activePlayerId);
-      if (socket.id === activePlayerId) {
-        if (navigator.vibrate) navigator.vibrate(200);
-      } else {
-        // Reset state if turn ends
-        setIsGrabbing(false);
-        setCalibration(null);
+    socket.on("roomError", (msg) => setError(msg));
+    
+    socket.on("turnUpdate", (roomIdUpdate, activePlayerId) => {
+      if (roomIdUpdate === roomId) {
+        setIsMyTurn(socket.id === activePlayerId);
+        if (socket.id === activePlayerId) {
+          if (navigator.vibrate) navigator.vibrate(200);
+        } else {
+          setIsGrabbing(false);
+        }
       }
     });
 
@@ -50,64 +46,50 @@ export default function ControllerScreen({ roomId, onLeave }: ControllerScreenPr
       socket.off("roomError");
       socket.off("turnUpdate");
       window.removeEventListener("deviceorientation", handleOrientation);
+      window.removeEventListener("devicemotion", handleMotion);
     };
-  }, []);
+  }, [roomId]);
 
   const handleOrientation = useCallback((event: DeviceOrientationEvent) => {
-    if (!isMyTurn || !isGrabbing) return;
+    if (!isMyTurn || isGrabbing) return; // Only aim when NOT swinging
     
-    setCalibration((cal) => {
-      if (!cal && event.alpha !== null && event.beta !== null && event.gamma !== null) {
-        // Initial calibration point when grab button is first pressed
-        return { alpha: event.alpha, beta: event.beta, gamma: event.gamma };
-      }
-      
-      if (cal && event.alpha !== null && event.beta !== null && event.gamma !== null) {
-        // Calculate relative rotation (yaw and pitch)
-        let dAlpha = event.alpha - cal.alpha;
-        let dBeta = event.beta - cal.beta;
-        
-        // Handle 360 wrap-around for alpha (yaw)
-        if (dAlpha > 180) dAlpha -= 360;
-        if (dAlpha < -180) dAlpha += 360;
-        
-        // Map rotation to slingshot pull distance (adjust sensitivity here)
-        // Usually you hold the phone flat or slightly tilted up. 
-        // Alpha (yaw) = Left/Right (X axis)
-        // Beta (pitch) = Up/Down (Y axis)
-        const sensitivity = 3.5; 
-        
-        const dx = dAlpha * sensitivity;
-        const dy = dBeta * sensitivity;
-        
-        // Limit max pull distance
-        const dist = Math.sqrt(dx*dx + dy*dy);
-        const maxDist = 150;
-        
-        let fx = dx;
-        let fy = dy;
-        
-        if (dist > maxDist) {
-          fx = (dx / dist) * maxDist;
-          fy = (dy / dist) * maxDist;
-        }
-        
-        setCurrentOffset({ x: fx, y: fy });
-        socket.emit("slingDrag", roomId, { dx: fx, dy: fy });
-      }
-      
-      return cal;
-    });
+    // Use gamma (tilt left/right) for aiming
+    let gamma = event.gamma || 0;
+    // Cap tilt between -45 and 45 degrees
+    if (gamma > 45) gamma = 45;
+    if (gamma < -45) gamma = -45;
+    
+    // Normalize to -1 to 1
+    const aim = gamma / 45;
+    socket.emit("bowlAim", roomId, { aim });
   }, [isMyTurn, isGrabbing, roomId]);
 
+  const handleMotion = useCallback((event: DeviceMotionEvent) => {
+    if (!isMyTurn || !isGrabbing) return;
+    
+    // Accumulate swing power
+    const acc = event.acceleration || event.accelerationIncludingGravity;
+    if (acc) {
+      const force = Math.abs(acc.y || 0) + Math.abs(acc.z || 0) + Math.abs(acc.x || 0);
+      if (force > maxAccRef.current) {
+        maxAccRef.current = force;
+      }
+    }
+  }, [isMyTurn, isGrabbing]);
+
   useEffect(() => {
-    if (pointerModeActive) {
+    if (motionActive) {
       window.addEventListener("deviceorientation", handleOrientation);
+      window.addEventListener("devicemotion", handleMotion);
     } else {
       window.removeEventListener("deviceorientation", handleOrientation);
+      window.removeEventListener("devicemotion", handleMotion);
     }
-    return () => window.removeEventListener("deviceorientation", handleOrientation);
-  }, [pointerModeActive, handleOrientation]);
+    return () => {
+      window.removeEventListener("deviceorientation", handleOrientation);
+      window.removeEventListener("devicemotion", handleMotion);
+    }
+  }, [motionActive, handleOrientation, handleMotion]);
 
   const handleJoin = () => {
     if (playerName.trim()) {
@@ -115,41 +97,50 @@ export default function ControllerScreen({ roomId, onLeave }: ControllerScreenPr
     }
   };
 
-  const enablePointerMode = () => {
-    // Request permission for iOS 13+ devices
-    if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
-      (DeviceOrientationEvent as any).requestPermission()
-        .then((permissionState: string) => {
-          if (permissionState === 'granted') {
-            setPointerModeActive(true);
-          } else {
-            alert("Permission required for Wii pointer mode.");
-          }
-        })
-        .catch(console.error);
-    } else {
-      // Non iOS 13+ devices
-      setPointerModeActive(true);
-    }
+  const enableMotionMode = () => {
+    const requestMotion = (typeof (DeviceMotionEvent as any).requestPermission === 'function')
+      ? (DeviceMotionEvent as any).requestPermission()
+      : Promise.resolve('granted');
+
+    const requestOrientation = (typeof (DeviceOrientationEvent as any).requestPermission === 'function')
+      ? (DeviceOrientationEvent as any).requestPermission()
+      : Promise.resolve('granted');
+
+    Promise.all([requestMotion, requestOrientation])
+      .then(states => {
+        if (states.every(s => s === 'granted' || typeof s === 'undefined')) {
+          setMotionActive(true);
+        } else {
+          alert("Sensor permission required for Bowling!");
+        }
+      })
+      .catch((err) => {
+        console.error(err);
+        setMotionActive(true);
+      });
   };
 
   const handleGrabStart = () => {
-    if (!isMyTurn || !pointerModeActive) return;
+    if (!isMyTurn || !motionActive) return;
     setIsGrabbing(true);
-    setCalibration(null); // Reset calibration on new grab
-    setCurrentOffset({ x: 0, y: 0 });
+    maxAccRef.current = 0; // Reset swing tracker
     if (navigator.vibrate) navigator.vibrate(50);
   };
-  
+
   const handleGrabEnd = () => {
-    if (!isMyTurn || !pointerModeActive || !isGrabbing) return;
+    if (!isMyTurn || !motionActive || !isGrabbing) return;
     setIsGrabbing(false);
     
-    socket.emit("slingRelease", roomId, { dx: currentOffset.x, dy: currentOffset.y });
-    setCurrentOffset({ x: 0, y: 0 });
+    // Calculate final power
+    let power = maxAccRef.current / 15; 
+    if (power < 0.5) power = 0.5; // Minimum throw
+    if (power > 3.0) power = 3.0; // Max throw limit
+
+    socket.emit("bowlThrow", roomId, { power, spin: 0 });
+    
     if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
   };
-  
+
   const handleAbility = () => {
     if (!isMyTurn) return;
     socket.emit("triggerAbility", roomId);
@@ -158,28 +149,28 @@ export default function ControllerScreen({ roomId, onLeave }: ControllerScreenPr
 
   if (!joined) {
     return (
-      <div className="w-full h-full bg-[#0a001a] flex flex-col items-center justify-center p-6">
-        <div className="w-full max-w-sm bg-slate-900 border-2 border-pink-500/50 rounded-2xl p-8 shadow-[0_0_30px_rgba(236,72,153,0.3)]">
-          <h2 className="text-3xl font-black text-pink-400 mb-6 text-center uppercase tracking-widest">JOIN ROOM</h2>
-          <div className="text-xl text-center text-slate-300 font-mono tracking-[0.3em] mb-6">ID: {roomId}</div>
-          
+      <div className="flex flex-col items-center justify-center min-h-[100dvh] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900 via-slate-900 to-black text-white p-6">
+        <Gamepad2 size={64} className="mb-6 text-cyan-400 drop-shadow-[0_0_15px_rgba(6,182,212,0.8)]" />
+        <h1 className="text-3xl font-black uppercase tracking-widest mb-8 text-center text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
+          Neon Bowling
+        </h1>
+        
+        <div className="w-full max-w-sm bg-slate-800/50 p-6 rounded-2xl border border-slate-700 backdrop-blur-sm shadow-xl">
           <input 
             type="text" 
+            placeholder="Enter your name..."
+            className="w-full bg-slate-900 border-2 border-slate-600 rounded-xl px-4 py-3 text-lg font-bold mb-4 focus:outline-none focus:border-cyan-400 transition-colors"
             value={playerName}
-            onChange={(e) => setPlayerName(e.target.value)}
-            placeholder="YOUR NAME" 
+            onChange={e => setPlayerName(e.target.value)}
             maxLength={12}
-            className="w-full bg-black/50 border border-pink-500/50 text-pink-400 text-center text-xl tracking-[0.2em] p-4 rounded-xl focus:outline-none focus:border-pink-400 mb-6 placeholder:text-pink-900"
           />
-          
-          {error && <p className="text-red-400 text-center mb-4">{error}</p>}
-          
+          {error && <p className="text-red-400 text-sm font-bold mb-4">{error}</p>}
           <button 
             onClick={handleJoin}
             disabled={!playerName.trim()}
-            className="w-full bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 disabled:opacity-50 text-white font-black text-xl py-4 rounded-xl uppercase tracking-widest shadow-[0_0_15px_rgba(236,72,153,0.5)]"
+            className="w-full bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-slate-900 font-black uppercase tracking-widest py-4 rounded-xl shadow-[0_0_15px_rgba(6,182,212,0.5)] transition-all"
           >
-            CONNECT
+            Join Lane
           </button>
         </div>
       </div>
@@ -187,34 +178,41 @@ export default function ControllerScreen({ roomId, onLeave }: ControllerScreenPr
   }
 
   return (
-    <div className="w-full h-full bg-[#050014] flex flex-col text-white select-none touch-none overflow-hidden pb-safe">
-      <div className="flex items-center justify-between p-4 bg-slate-900/80 border-b border-cyan-500/30">
-        <button onClick={onLeave} className="text-slate-400 p-2">
-          <LogOut size={24} />
+    <div className="flex flex-col h-[100dvh] bg-black text-white overflow-hidden select-none">
+      {/* Header */}
+      <div className="p-4 bg-slate-900 border-b border-cyan-500/30 flex justify-between items-center z-10 shadow-[0_0_20px_rgba(6,182,212,0.2)]">
+        <div className="flex items-center gap-3">
+           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center font-black text-lg border-2 border-white shadow-[0_0_10px_rgba(6,182,212,0.8)]">
+             {playerName.charAt(0).toUpperCase()}
+           </div>
+           <div>
+             <div className="text-xs text-cyan-400 font-bold uppercase tracking-widest">Bowler</div>
+             <div className="font-black uppercase">{playerName}</div>
+           </div>
+        </div>
+        
+        <button onClick={onExit} className="p-2 text-slate-400 hover:text-white bg-slate-800 rounded-lg">
+          <LogOut size={20} />
         </button>
-        <div className="text-cyan-400 font-black tracking-widest uppercase text-xl">
-          {playerName}
-        </div>
-        <div className={`px-4 py-1 rounded-full text-sm font-bold tracking-widest ${isMyTurn ? 'bg-green-500 text-black shadow-[0_0_10px_rgba(34,197,94,0.8)]' : 'bg-slate-800 text-slate-500'}`}>
-          {isMyTurn ? 'YOUR TURN' : 'WAITING'}
-        </div>
       </div>
       
-      {/* Aiming Area */}
-      <div className="flex-1 relative flex flex-col items-center justify-center overflow-hidden bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[#12002f] to-[#050014] p-6">
+      {/* Aiming / Throw Area */}
+      <div className="flex-1 relative flex flex-col items-center justify-center overflow-hidden bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900/40 to-black p-6">
         <div className="absolute inset-0 opacity-20 pointer-events-none" style={{
-            backgroundImage: 'linear-gradient(to right, #e81cff 1px, transparent 1px), linear-gradient(to bottom, #e81cff 1px, transparent 1px)',
+            backgroundImage: 'linear-gradient(to right, #06b6d4 1px, transparent 1px), linear-gradient(to bottom, #06b6d4 1px, transparent 1px)',
             backgroundSize: '20px 20px',
+            transform: 'perspective(500px) rotateX(60deg)',
+            transformOrigin: 'bottom'
         }} />
         
-        {!pointerModeActive ? (
+        {!motionActive ? (
           <div className="z-10 flex flex-col items-center gap-6">
-            <Gamepad2 size={80} className="text-cyan-400" />
+            <Gamepad2 size={80} className="text-cyan-400 drop-shadow-[0_0_15px_rgba(6,182,212,0.8)]" />
             <p className="text-center text-slate-300 max-w-[250px] uppercase tracking-widest font-bold">
-              Enable Wii Remote mode to aim with your phone's tilt!
+              Enable Wii Remote mode to bowl with your phone!
             </p>
             <button 
-              onClick={enablePointerMode}
+              onClick={enableMotionMode}
               className="bg-cyan-500 hover:bg-cyan-400 text-black font-black uppercase tracking-widest px-8 py-4 rounded-full shadow-[0_0_20px_rgba(6,182,212,0.6)]"
             >
               Activate Motion
@@ -223,11 +221,11 @@ export default function ControllerScreen({ roomId, onLeave }: ControllerScreenPr
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center z-10 relative">
             <div className="text-center pointer-events-none mb-12">
-              <Crosshair size={64} className={`mx-auto mb-4 ${isGrabbing ? 'text-pink-500' : 'text-slate-600'} transition-colors duration-200`} />
-              <p className="text-slate-400 uppercase tracking-widest font-bold text-sm">
+              <Navigation size={64} className={`mx-auto mb-4 ${isGrabbing ? 'text-blue-500' : 'text-slate-600'} transition-colors duration-200 ${isGrabbing ? '' : 'animate-pulse'}`} />
+              <p className="text-cyan-400 uppercase tracking-widest font-bold text-sm bg-black/50 px-4 py-2 rounded-full border border-cyan-500/30">
                 {isMyTurn 
-                  ? (isGrabbing ? 'AIMING... RELEASE TO SHOOT!' : 'HOLD BUTTON AND TILT TO AIM') 
-                  : 'PLEASE WAIT FOR YOUR TURN'}
+                  ? (isGrabbing ? 'SWING AND RELEASE!' : 'TILT LEFT/RIGHT TO AIM') 
+                  : 'WAITING FOR YOUR TURN'}
               </p>
             </div>
 
@@ -239,43 +237,33 @@ export default function ControllerScreen({ roomId, onLeave }: ControllerScreenPr
               onMouseUp={handleGrabEnd}
               onMouseLeave={handleGrabEnd}
               disabled={!isMyTurn}
-              className={`w-40 h-40 rounded-full flex items-center justify-center text-5xl font-black transition-all ${
+              className={`w-48 h-48 rounded-full flex flex-col items-center justify-center transition-all ${
                 !isMyTurn 
                   ? 'bg-slate-800 text-slate-600 border-4 border-slate-700'
                   : isGrabbing 
-                    ? 'bg-pink-500 text-white border-4 border-pink-300 scale-95 shadow-[0_0_30px_rgba(236,72,153,0.8)]'
-                    : 'bg-slate-800 text-pink-500 border-4 border-pink-500 shadow-[0_0_15px_rgba(236,72,153,0.4)]'
+                    ? 'bg-cyan-500 text-slate-900 border-4 border-cyan-200 scale-95 shadow-[0_0_40px_rgba(6,182,212,0.8)]'
+                    : 'bg-slate-900 text-cyan-400 border-4 border-cyan-500 shadow-[0_0_20px_rgba(6,182,212,0.4)]'
               }`}
             >
-              A
+              <span className="text-7xl font-black block leading-none">B</span>
+              <span className="text-xs font-bold uppercase tracking-widest mt-2 opacity-80">
+                {isGrabbing ? 'SWINGING' : 'HOLD TO SWING'}
+              </span>
             </button>
-
-            {/* Virtual Thumbstick Feedback */}
-            {isGrabbing && (
-              <div 
-                className="absolute w-24 h-24 rounded-full border-2 border-cyan-500/50 flex items-center justify-center pointer-events-none"
-                style={{ top: '20%' }}
-              >
-                <div 
-                  className="w-8 h-8 rounded-full bg-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.8)]"
-                  style={{ transform: `translate(${currentOffset.x * 0.3}px, ${currentOffset.y * 0.3}px)` }}
-                />
-              </div>
-            )}
           </div>
         )}
       </div>
-      
-      {/* Ability Button */}
-      <div className="p-6 bg-slate-900 border-t border-purple-500/30 flex justify-center z-10">
+
+      {/* Ability Button (Spin/Special) */}
+      <div className="p-6 bg-slate-900 border-t border-cyan-500/30 flex justify-center z-10 shadow-[0_-10px_20px_rgba(0,0,0,0.5)]">
         <button 
           onClick={handleAbility}
           disabled={!isMyTurn}
-          className="w-full max-w-sm h-24 bg-gradient-to-r from-purple-600 to-blue-600 disabled:from-slate-800 disabled:to-slate-800 rounded-2xl flex items-center justify-center gap-4 border-2 border-purple-400 disabled:border-slate-700 shadow-[0_0_20px_rgba(168,85,247,0.5)] disabled:shadow-none active:scale-95 transition-transform"
+          className="w-full max-w-sm h-20 bg-gradient-to-r from-blue-600 to-cyan-600 disabled:from-slate-800 disabled:to-slate-800 rounded-2xl flex items-center justify-center gap-4 border-2 border-cyan-400 disabled:border-slate-700 shadow-[0_0_20px_rgba(6,182,212,0.5)] disabled:shadow-none active:scale-95 transition-transform"
         >
-          <Zap size={32} className={isMyTurn ? "text-white" : "text-slate-500"} />
-          <span className={`text-2xl font-black uppercase tracking-widest ${isMyTurn ? "text-white" : "text-slate-500"}`}>
-            ABILITY
+          <Zap size={28} className={isMyTurn ? "text-white" : "text-slate-500"} />
+          <span className={`text-xl font-black uppercase tracking-widest ${isMyTurn ? "text-white" : "text-slate-500"}`}>
+            SPECIAL
           </span>
         </button>
       </div>
