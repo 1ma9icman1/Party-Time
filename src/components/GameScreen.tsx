@@ -7,10 +7,10 @@ import { LogOut } from "lucide-react";
 import * as THREE from "three";
 
 const PIN_POSITIONS: [number, number, number][] = [
-    [0, 1, -15],
-    [-0.8, 1, -16.5], [0.8, 1, -16.5],
-    [-1.6, 1, -18], [0, 1, -18], [1.6, 1, -18],
-    [-2.4, 1, -19.5], [-0.8, 1, -19.5], [0.8, 1, -19.5], [2.4, 1, -19.5]
+    [0, 1, -45],
+    [-0.8, 1, -46.5], [0.8, 1, -46.5],
+    [-1.6, 1, -48], [0, 1, -48], [1.6, 1, -48],
+    [-2.4, 1, -49.5], [-0.8, 1, -49.5], [0.8, 1, -49.5], [2.4, 1, -49.5]
 ];
 
 const Pin = ({ position, onFallen, id }: { position: [number, number, number], onFallen: (id: number) => void, id: number }) => {
@@ -67,9 +67,12 @@ const Ball = ({ roomId, onThrow }: { roomId: string, onThrow: () => void }) => {
     const isThrown = useRef(false);
 
     useEffect(() => {
+        let currentAim = 0;
+
         const handleAim = (data: { aim: number }) => {
             if (!isThrown.current) {
-                api.position.set(data.aim * 4, 1, 10);
+                currentAim = data.aim;
+                api.position.set(currentAim * 4, 1, 10);
                 api.velocity.set(0,0,0);
                 api.angularVelocity.set(0,0,0);
             }
@@ -79,17 +82,34 @@ const Ball = ({ roomId, onThrow }: { roomId: string, onThrow: () => void }) => {
             if (!isThrown.current) {
                 isThrown.current = true;
                 // Add velocity to move towards pins (-Z axis)
-                api.applyImpulse([data.spin * 20, 0, -data.power * 250], [0,0,0]);
+                api.applyImpulse([data.spin * 20, 0, -data.power * 400], [0,0,0]);
                 onThrow();
+            }
+        };
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (isThrown.current) return;
+            if (e.key === "ArrowLeft") {
+                currentAim = Math.max(-1, currentAim - 0.1);
+                handleAim({ aim: currentAim });
+            }
+            if (e.key === "ArrowRight") {
+                currentAim = Math.min(1, currentAim + 0.1);
+                handleAim({ aim: currentAim });
+            }
+            if (e.key === " ") {
+                handleThrow({ power: 2.5, spin: 0 }); // Default test throw
             }
         };
         
         socket.on("bowlAim", handleAim);
         socket.on("bowlThrow", handleThrow);
+        window.addEventListener("keydown", handleKeyDown);
         
         return () => {
             socket.off("bowlAim", handleAim);
             socket.off("bowlThrow", handleThrow);
+            window.removeEventListener("keydown", handleKeyDown);
         }
     }, [api, onThrow]);
 
@@ -102,34 +122,34 @@ const Ball = ({ roomId, onThrow }: { roomId: string, onThrow: () => void }) => {
 };
 
 const Lane = () => {
-    useBox(() => ({ type: "Static", position: [0, -0.25, -5], args: [10, 0.5, 40], material: { friction: 0.1, restitution: 0.2 } }));
-    useBox(() => ({ type: "Static", position: [-6, -0.5, -5], args: [2, 0.5, 40] }));
-    useBox(() => ({ type: "Static", position: [6, -0.5, -5], args: [2, 0.5, 40] }));
-    useBox(() => ({ type: "Static", position: [0, 2, -26], args: [14, 4, 2] }));
+    useBox(() => ({ type: "Static", position: [0, -0.25, -20], args: [10, 0.5, 100], material: { friction: 0.1, restitution: 0.2 } }));
+    useBox(() => ({ type: "Static", position: [-6, -0.5, -20], args: [2, 0.5, 100] }));
+    useBox(() => ({ type: "Static", position: [6, -0.5, -20], args: [2, 0.5, 100] }));
+    useBox(() => ({ type: "Static", position: [0, 2, -55], args: [14, 4, 2] }));
 
     return (
         <group>
-            <mesh position={[0, -0.01, -5]} rotation={[-Math.PI/2, 0, 0]} receiveShadow>
-                <planeGeometry args={[10, 40]} />
+            <mesh position={[0, -0.01, -20]} rotation={[-Math.PI/2, 0, 0]} receiveShadow>
+                <planeGeometry args={[10, 100]} />
                 <meshStandardMaterial color="#0f172a" metalness={0.5} roughness={0.2} />
             </mesh>
             <Grid 
-              position={[0, 0.01, -5]} 
-              args={[10, 40]} 
+              position={[0, 0.01, -20]} 
+              args={[10, 100]} 
               cellSize={1} 
               cellThickness={1} 
               cellColor="#0ea5e9" 
               sectionSize={5} 
               sectionThickness={1.5} 
               sectionColor="#38bdf8" 
-              fadeDistance={40}
+              fadeDistance={100}
             />
-            <mesh position={[-6, -0.25, -5]}>
-                <boxGeometry args={[2, 0.5, 40]} />
+            <mesh position={[-6, -0.25, -20]}>
+                <boxGeometry args={[2, 0.5, 100]} />
                 <meshStandardMaterial color="#020617" />
             </mesh>
-            <mesh position={[6, -0.25, -5]}>
-                <boxGeometry args={[2, 0.5, 40]} />
+            <mesh position={[6, -0.25, -20]}>
+                <boxGeometry args={[2, 0.5, 100]} />
                 <meshStandardMaterial color="#020617" />
             </mesh>
         </group>
@@ -279,12 +299,12 @@ export default function GameScreen({ roomId, isSolo, onExit }: GameScreenProps) 
       <div className="absolute inset-0 z-0">
          <Canvas shadows>
             {/* Camera looking slightly down and forward */}
-            <PerspectiveCamera makeDefault position={[0, 4, 18]} rotation={[-0.1, 0, 0]} fov={50} />
+            <PerspectiveCamera makeDefault position={[0, 5, 18]} rotation={[-0.15, 0, 0]} fov={45} />
             <Environment preset="city" />
             <ambientLight intensity={0.4} />
             {/* Neon Lights */}
             <pointLight position={[0, 5, 5]} intensity={2} color="#06b6d4" castShadow />
-            <pointLight position={[0, 5, -15]} intensity={2} color="#ec4899" />
+            <pointLight position={[0, 8, -40]} intensity={3} color="#ec4899" distance={50} />
             
             <Physics gravity={[0, -30, 0]} defaultContactMaterial={{ friction: 0.1, restitution: 0.4 }}>
                <Lane />

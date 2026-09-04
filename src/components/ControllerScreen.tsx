@@ -30,14 +30,12 @@ export default function ControllerScreen({ roomId, onExit }: ControllerScreenPro
     
     socket.on("roomError", (msg) => setError(msg));
     
-    socket.on("turnUpdate", (roomIdUpdate, activePlayerId) => {
-      if (roomIdUpdate === roomId) {
-        setIsMyTurn(socket.id === activePlayerId);
-        if (socket.id === activePlayerId) {
-          if (navigator.vibrate) navigator.vibrate(200);
-        } else {
-          setIsGrabbing(false);
-        }
+    socket.on("turnUpdate", (activePlayerId) => {
+      setIsMyTurn(socket.id === activePlayerId);
+      if (socket.id === activePlayerId) {
+        if (navigator.vibrate) navigator.vibrate(200);
+      } else {
+        setIsGrabbing(false);
       }
     });
 
