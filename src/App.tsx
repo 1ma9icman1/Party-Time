@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { loginAnonymously } from "./firebase";
 import MainMenu from "./components/MainMenu";
 import HostScreen from "./components/HostScreen";
 import ControllerScreen from "./components/ControllerScreen";
@@ -9,8 +8,6 @@ export default function App() {
   const [roomId, setRoomId] = useState<string>('');
 
   useEffect(() => {
-    loginAnonymously();
-    
     // Check URL parameters for easy joining via QR
     const urlParams = new URLSearchParams(window.location.search);
     const roomFromUrl = urlParams.get('room');

@@ -1,6 +1,8 @@
-import { useState } from "react";
-import { Users, Gamepad2, Settings, QrCode } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Users, Gamepad2, Settings, QrCode, LogIn, LogOut } from "lucide-react";
 import { motion } from "motion/react";
+import { auth, loginWithGoogle } from "../firebase";
+import { onAuthStateChanged, User } from "firebase/auth";
 
 interface MainMenuProps {
   onHost: () => void;
@@ -11,6 +13,14 @@ interface MainMenuProps {
 export default function MainMenu({ onHost, onJoin, onSolo }: MainMenuProps) {
   const [joinCode, setJoinCode] = useState("");
   const [showJoin, setShowJoin] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+    });
+    return () => unsubscribe();
+  }, []);
 
   return (
     <div className="relative w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#050014] to-[#12002f] overflow-hidden">
@@ -23,6 +33,27 @@ export default function MainMenu({ onHost, onJoin, onSolo }: MainMenuProps) {
              height: '200%'
            }} 
       />
+
+      {/* Top right auth corner */}
+      <div className="absolute top-4 right-4 z-20">
+        {user ? (
+           <div className="flex items-center gap-4 bg-slate-900/80 p-3 rounded-full border border-cyan-500/50 backdrop-blur-md">
+             <img src={user.photoURL || `https://ui-avatars.com/api/?name=${user.email}`} alt="Avatar" className="w-10 h-10 rounded-full border border-cyan-400" />
+             <div className="hidden md:flex flex-col text-sm pr-4">
+               <span className="text-cyan-400 font-bold">{user.displayName || 'Player'}</span>
+               <button onClick={() => auth.signOut()} className="text-pink-400 text-xs text-left hover:text-pink-300">Sign Out</button>
+             </div>
+           </div>
+        ) : (
+           <button 
+             onClick={loginWithGoogle}
+             className="flex items-center gap-2 bg-slate-900/80 px-6 py-3 rounded-full border border-pink-500/50 hover:bg-pink-900/50 hover:border-pink-400 text-pink-400 font-bold uppercase tracking-widest transition-all shadow-[0_0_15px_rgba(236,72,153,0.3)] backdrop-blur-md"
+           >
+             <LogIn size={18} />
+             Sign In
+           </button>
+        )}
+      </div>
 
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
