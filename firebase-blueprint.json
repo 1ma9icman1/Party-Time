@@ -1,0 +1,38 @@
+{
+  "entities": {
+    "LeaderboardEntry": {
+      "title": "Leaderboard Entry",
+      "description": "A player's high score in Tournament mode.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "playerName": { "type": "string", "maxLength": 64 },
+        "score": { "type": "number" },
+        "updatedAt": { "type": "object" }
+      },
+      "required": ["userId", "playerName", "score", "updatedAt"]
+    },
+    "UserProgress": {
+      "title": "User Progress",
+      "description": "A player's story mode progress.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "maxLevelUnlocked": { "type": "number" },
+        "stars": { "type": "object", "description": "Map of level to stars earned" },
+        "updatedAt": { "type": "object" }
+      },
+      "required": ["userId", "maxLevelUnlocked", "stars", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "leaderboards/{entryId}": {
+      "schema": "#/entities/LeaderboardEntry",
+      "description": "High scores for all users."
+    },
+    "users/{userId}": {
+      "schema": "#/entities/UserProgress",
+      "description": "Per-user game progression."
+    }
+  }
+}
