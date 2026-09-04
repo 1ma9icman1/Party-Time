@@ -25,7 +25,7 @@ export default function MainMenu({ onHost, onJoin, onSolo }: MainMenuProps) {
   return (
     <div className="relative w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#050014] to-[#12002f] overflow-hidden">
       {/* Background Neon Grid */}
-      <div className="absolute inset-0 pointer-events-none" 
+      <div className="absolute inset-0 pointer-events-none z-0" 
            style={{
              backgroundImage: 'linear-gradient(to right, #e81cff22 1px, transparent 1px), linear-gradient(to bottom, #e81cff22 1px, transparent 1px)',
              backgroundSize: '40px 40px',
@@ -33,6 +33,7 @@ export default function MainMenu({ onHost, onJoin, onSolo }: MainMenuProps) {
              height: '200%'
            }} 
       />
+      <NeonParticles />
 
       {/* Top right auth corner */}
       <div className="absolute top-4 right-4 z-20">
@@ -56,34 +57,49 @@ export default function MainMenu({ onHost, onJoin, onSolo }: MainMenuProps) {
       </div>
 
       <motion.div 
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="z-10 flex flex-col items-center"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="z-10 relative flex items-center justify-center w-[600px] h-[600px]"
       >
-        <h1 className="text-5xl md:text-8xl font-black italic tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 drop-shadow-[0_0_15px_rgba(6,182,212,0.8)] mb-6 uppercase">
-          Party Time
-        </h1>
+        {/* Rotating Circular Text SVG */}
+        <motion.div 
+          className="absolute inset-0 pointer-events-none drop-shadow-[0_0_15px_rgba(6,182,212,0.8)]"
+          animate={{ rotate: 360 }}
+          transition={{ duration: 25, ease: "linear", repeat: Infinity }}
+        >
+          <svg width="600" height="600" viewBox="0 0 600 600">
+            <defs>
+              <path id="textCircle" d="M 300, 300 m -220, 0 a 220,220 0 1,1 440,0 a 220,220 0 1,1 -440,0" />
+            </defs>
+            <text className="text-[44px] font-black uppercase tracking-[0.25em]" fill="transparent" stroke="#22d3ee" strokeWidth="2">
+              <textPath href="#textCircle" startOffset="0%">
+                 PARTY TIME ✦ PARTY TIME ✦ PARTY TIME ✦ PARTY TIME ✦ 
+              </textPath>
+            </text>
+          </svg>
+        </motion.div>
 
-        <div className="flex flex-col gap-6 w-80">
+        {/* Center Buttons Container */}
+        <div className="flex flex-col gap-6 w-80 z-20">
           <MenuButton icon={<Gamepad2 size={24} />} text="Host Party" onClick={onHost} color="cyan" />
           
           {showJoin ? (
             <motion.div 
               initial={{ height: 0, opacity: 0 }} 
               animate={{ height: 'auto', opacity: 1 }}
-              className="flex flex-col gap-2 p-4 border border-pink-500/50 rounded-xl bg-pink-950/30 backdrop-blur-md shadow-[0_0_15px_rgba(236,72,153,0.3)]"
+              className="flex flex-col gap-2 p-4 border border-pink-500/50 rounded-xl bg-pink-950/80 backdrop-blur-md shadow-[0_0_20px_rgba(236,72,153,0.5)]"
             >
               <input 
                 type="text" 
                 value={joinCode}
                 onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                placeholder="ENTER ROOM CODE" 
+                placeholder="ROOM CODE" 
                 maxLength={4}
-                className="w-full bg-black/50 border border-pink-500/50 text-pink-400 text-center text-2xl tracking-[0.5em] p-3 rounded-lg focus:outline-none focus:border-pink-400 focus:shadow-[0_0_10px_rgba(236,72,153,0.5)] placeholder:text-pink-900"
+                className="w-full bg-black/50 border border-pink-500/50 text-pink-400 text-center text-2xl tracking-[0.5em] p-3 rounded-lg focus:outline-none focus:border-pink-400 focus:shadow-[0_0_15px_rgba(236,72,153,0.8)] placeholder:text-pink-900"
               />
               <button 
                 onClick={() => joinCode.length >= 4 && onJoin(joinCode)}
-                className="w-full bg-pink-600 hover:bg-pink-500 text-white font-bold py-2 rounded-lg transition-colors"
+                className="w-full bg-pink-600 hover:bg-pink-500 text-white font-bold py-2 rounded-lg transition-colors tracking-widest uppercase"
               >
                 JOIN
               </button>
@@ -118,5 +134,41 @@ function MenuButton({ icon, text, onClick, color }: { icon: React.ReactNode, tex
       {icon}
       {text}
     </motion.button>
+  );
+}
+
+function NeonParticles() {
+  const particles = Array.from({ length: 40 });
+  const colors = ['bg-pink-500', 'bg-cyan-400', 'bg-purple-500', 'bg-yellow-400'];
+  
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+      {particles.map((_, i) => {
+        const size = Math.random() * 6 + 2;
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        const left = Math.random() * 100;
+        const duration = Math.random() * 15 + 10;
+        const delay = Math.random() * 10;
+        
+        return (
+          <motion.div
+            key={i}
+            className={`absolute rounded-full shadow-[0_0_10px_currentColor] ${color}`}
+            style={{ width: size, height: size, left: `${left}%`, top: '110%' }}
+            animate={{
+              y: ['0vh', '-120vh'],
+              x: [0, (Math.random() - 0.5) * 200],
+              opacity: [0, 0.8, 0],
+            }}
+            transition={{
+              duration,
+              delay,
+              repeat: Infinity,
+              ease: "linear"
+            }}
+          />
+        );
+      })}
+    </div>
   );
 }
