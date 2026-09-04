@@ -1,6 +1,6 @@
 {
-  "name": "Party Time",
-  "description": "A multiplayer slingshot physics game inspired by Angry Birds. Features co-op story mode, competitive PvP tournaments, and mobile devices as controllers.",
+  "name": "Pin Party",
+  "description": "A multiplayer Wii-style 3D neon bowling game. Features competitive PvP tournaments and uses mobile devices as motion controllers.",
   "requestFramePermissions": ["camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

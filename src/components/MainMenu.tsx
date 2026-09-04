@@ -1,3 +1,4 @@
+import { CircularText } from "./CircularText";
 import { useEffect, useState } from "react";
 import { Users, Gamepad2, Settings, QrCode, LogIn, LogOut } from "lucide-react";
 import { motion } from "motion/react";
@@ -27,7 +28,7 @@ export default function MainMenu({ onHost, onJoin, onSolo }: MainMenuProps) {
       {/* Uploaded Background Image */}
       <div className="absolute inset-0 z-0 pointer-events-none"
            style={{
-             backgroundImage: "url('/assets/aistudio/Copilot_20260904_130159.png')",
+             backgroundImage: "url('https://raw.githubusercontent.com/ma9icmanai12-sys/UNO/main/public/assets/aistudio/Copilot_20260904_141035.png')",
              backgroundSize: 'cover',
              backgroundPosition: 'center',
              filter: 'blur(8px) brightness(0.4)'
@@ -70,22 +71,13 @@ export default function MainMenu({ onHost, onJoin, onSolo }: MainMenuProps) {
         animate={{ opacity: 1 }}
         className="z-10 relative flex items-center justify-center w-[600px] h-[600px]"
       >
-        {/* Rotating Circular Text SVG */}
+        {/* Rotating Circular Text */}
         <motion.div 
-          className="absolute inset-0 pointer-events-none drop-shadow-[0_0_15px_rgba(6,182,212,0.8)]"
+          className="absolute inset-0 pointer-events-none"
           animate={{ rotate: 360 }}
           transition={{ duration: 25, ease: "linear", repeat: Infinity }}
         >
-          <svg width="600" height="600" viewBox="0 0 600 600">
-            <defs>
-              <path id="textCircle" d="M 300, 300 m -220, 0 a 220,220 0 1,1 440,0 a 220,220 0 1,1 -440,0" />
-            </defs>
-            <text className="text-[44px] font-black uppercase tracking-[0.25em]" fill="transparent" stroke="#22d3ee" strokeWidth="2">
-              <textPath href="#textCircle" startOffset="0%" textLength="1382" lengthAdjust="spacingAndGlyphs">
-                 PARTY TIME ✦ PARTY TIME ✦ PARTY TIME ✦ PARTY TIME ✦
-              </textPath>
-            </text>
-          </svg>
+          <CircularText />
         </motion.div>
 
         {/* Center Buttons Container */}
